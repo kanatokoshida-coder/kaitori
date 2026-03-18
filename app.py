@@ -83,12 +83,13 @@ def fetch_prices():
         elif metal == "パラジウム" and label not in palladium_prices:
             palladium_prices[label] = price
 
-    # デバッグ用：￥を含むli要素のテキストを収集
+    # デバッグ用：optionタグから価格を探す
     debug_lines = []
-    for li in soup.find_all("li"):
-        text = li.get_text(" ", strip=True)
-        if "￥" in text or "¥" in text:
-            debug_lines.append(text[:80])
+    for opt in soup.find_all("option"):
+        text = opt.get_text(strip=True)
+        val = opt.get("value", "")
+        if any(c.isdigit() for c in val):
+            debug_lines.append(f"text={text[:50]} value={val[:50]}")
 
     prices = {
         "金": gold_prices,
