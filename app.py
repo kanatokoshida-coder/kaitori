@@ -83,13 +83,19 @@ def fetch_prices():
         elif metal == "パラジウム" and label not in palladium_prices:
             palladium_prices[label] = price
 
-    # デバッグ用：optionタグから価格を探す
+    # デバッグ用：scriptタグから価格パターンを探す
+    import re as re2
     debug_lines = []
-    for opt in soup.find_all("option"):
-        text = opt.get_text(strip=True)
-        val = opt.get("value", "")
-        if any(c.isdigit() for c in val):
-            debug_lines.append(f"text={text[:50]} value={val[:50]}")
+    for script in soup.find_all("script"):
+        src = script.string or ""
+        # K24や価格っぽいパターンを探す
+        matches = re2.findall(r'K\d+[^\n]{0,60}', src)
+        for m in matches[:5]:
+            debug_lines.append(m[:100])
+        if matches:
+            break
+    if not debug_lines:
+        debug_lines.append("scriptタグにもK24が見つかりませんでした")
 
     prices = {
         "金": gold_prices,
