@@ -1,5 +1,5 @@
 import streamlit as st
-import requests
+import cloudscraper
 import re
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -22,7 +22,8 @@ def fetch_prices():
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
     }
-    res = requests.get(TARGET_URL, headers=headers, timeout=15)
+    scraper = cloudscraper.create_scraper()
+    res = scraper.get(TARGET_URL, headers=headers, timeout=15)
     res.encoding = res.apparent_encoding
     html = res.text
 
