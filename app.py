@@ -83,23 +83,34 @@ def fetch_prices():
         elif metal == "パラジウム" and label not in palladium_prices:
             palladium_prices[label] = price
 
+    # デバッグ用：￥を含むli要素のテキストを収集
+    debug_lines = []
+    for li in soup.find_all("li"):
+        text = li.get_text(" ", strip=True)
+        if "￥" in text or "¥" in text:
+            debug_lines.append(text[:80])
+
     prices = {
         "金": gold_prices,
         "プラチナ": platinum_prices,
         "シルバー": silver_prices,
         "パラジウム": palladium_prices,
     }
-    return prices, update_date
+    return prices, update_date, debug_lines
 
 
 # --- データ取得 ---
 with st.spinner("価格情報を取得中..."):
     try:
-        prices, update_date = fetch_prices()
+        prices, update_date, debug_lines = fetch_prices()
         if update_date:
             st.success(f"✅ {update_date}")
         else:
             st.success(f"✅ 価格取得完了（{datetime.now().strftime('%Y/%m/%d %H:%M')}時点）")
+        with st.expander("🔍 デバッグ情報（開発用）"):
+            st.write("￥を含むli要素：")
+            for line in debug_lines[:30]:
+                st.code(line)
     except Exception as e:
         st.error(f"価格の取得に失敗しました: {e}")
         st.stop()
