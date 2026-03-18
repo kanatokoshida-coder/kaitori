@@ -22,7 +22,6 @@ def fetch_prices():
     res.encoding = res.apparent_encoding
     soup = BeautifulSoup(res.text, "html.parser")
 
-    prices = {}
     update_date = ""
 
     # 更新日を探す
@@ -31,59 +30,83 @@ def fetch_prices():
             update_date = str(tag).strip()
             break
 
-    # テキスト全体から価格パターンを抽出
-    # 「品目名：￥XX,XXX」または「品目名 ￥XX,XXX」の形式を探す
-    text = soup.get_text(separator="\n")
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    # セクションキーワード
+    SECTION_KEYS = {
+        "金": ["金買取", "ゴールド", "金の買取"],
+        "プラチナ": ["プラチナ買取", "Pt買取"],
+        "シルバー": ["シルバー買取", "銀買取", "SV買取"],
+        "パラジウム": ["パラジウム買取", "Pd買取"],
+    }
 
-    gold_section = False
-    platinum_section = False
-    silver_section = False
-    palladium_section = False
+    def detect_section(text):
+        for metal, keywords in SECTION_KEYS.items():
+            for kw in keywords:
+                if kw in text:
+                    return metal
+        return None
+
+    def parse_price(text):
+        """テキストから価格（整数または小数）を抽出する"""
+        import re
+        text = text.replace(",", "").replace("，", "")
+        m = re.search(r"[￥¥]?\s*([\d]+(?:\.\d+)?)", text)
+        if m:
+            val = m.group(1)
+            return float(val) if "." in val else int(val)
+        return None
 
     gold_prices = {}
     platinum_prices = {}
     silver_prices = {}
     palladium_prices = {}
 
-    i = 0
-    while i < len(lines):
-        line = lines[i]
+    section_map = {
+        "金": gold_prices,
+        "プラチナ": platinum_prices,
+        "シルバー": silver_prices,
+        "パラジウム": palladium_prices,
+    }
 
-        # セクション判定
-        if "金買取" in line or "金の買取" in line:
-            gold_section = True
-            platinum_section = silver_section = palladium_section = False
-        elif "プラチナ買取" in line:
-            platinum_section = True
-            gold_section = silver_section = palladium_section = False
-        elif "シルバー買取" in line or "銀買取" in line:
-            silver_section = True
-            gold_section = platinum_section = palladium_section = False
-        elif "パラジウム買取" in line:
-            palladium_section = True
-            gold_section = platinum_section = silver_section = False
+    current_section = None
 
-        # 価格行を抽出（￥ が含まれる行）
-        if "￥" in line or "¥" in line:
-            price_str = line.replace(",", "").replace("￥", "").replace("¥", "").replace("/g", "").replace("円", "").strip()
-            try:
-                price = int(price_str)
-                # 直前の行をラベルとして使う
-                label = lines[i - 1].strip() if i > 0 else ""
+    # ページ内の全要素を順番に走査
+    for tag in soup.find_all(["h1", "h2", "h3", "h4", "h5", "li", "tr"]):
+        tag_text = tag.get_text(" ", strip=True)
 
-                if gold_section and label:
-                    gold_prices[label] = price
-                elif platinum_section and label:
-                    platinum_prices[label] = price
-                elif silver_section and label:
-                    silver_prices[label] = price
-                elif palladium_section and label:
-                    palladium_prices[label] = price
-            except ValueError:
-                pass
+        # 見出しでセクションを更新
+        if tag.name in ["h1", "h2", "h3", "h4", "h5"]:
+            detected = detect_section(tag_text)
+            if detected:
+                current_section = detected
+            continue
 
-        i += 1
+        if current_section is None:
+            continue
+
+        target_dict = section_map[current_section]
+
+        # <li> の場合：「K24(純度100％) ￥27,388」のような形式
+        if tag.name == "li":
+            if "￥" not in tag_text and "¥" not in tag_text and "円" not in tag_text:
+                continue
+            # ￥ または 円 で分割してラベルと価格を取得
+            import re
+            m = re.match(r"^(.+?)\s*[￥¥]\s*([\d,，]+(?:\.\d+)?)", tag_text)
+            if m:
+                label = m.group(1).strip()
+                price = parse_price(m.group(2))
+                if label and price and label not in target_dict:
+                    target_dict[label] = price
+
+        # <tr> の場合：<td>ラベル</td><td>￥価格</td>
+        elif tag.name == "tr":
+            tds = tag.find_all("td")
+            if len(tds) >= 2:
+                label = tds[0].get_text(strip=True)
+                price_text = tds[1].get_text(strip=True)
+                price = parse_price(price_text)
+                if label and price and label not in target_dict:
+                    target_dict[label] = price
 
     prices = {
         "金": gold_prices,
